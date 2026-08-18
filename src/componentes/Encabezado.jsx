@@ -12,8 +12,8 @@ import {
   BarChart3,
   Package,
   LogOut,
+  QrCode,
 } from "lucide-react";
-
 function Reloj() {
   const [hora, setHora] = useState(new Date());
 
@@ -41,7 +41,6 @@ const vistas = [
   { key: "sala", label: "Sala", icon: Table },
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
 ];
-
 function Encabezado({
   vista,
   onChangeVista,
@@ -52,8 +51,9 @@ function Encabezado({
   onGestionarProductos,
   usuario,
   onLogout,
+onAbrirQR,
 }) {
-  return (
+    return (
     <header className="relative flex items-center justify-between px-6 py-3 border-b border-[#E8DDD2] bg-white/60 backdrop-blur-md">
       <div className="flex items-center gap-4">
         <div className="relative">
@@ -134,6 +134,12 @@ function Encabezado({
             <span className="text-[#8B7A6A] text-xs font-medium">listos</span>
           </div>
         )}
+        <button
+          onClick={onAbrirQR}
+          className="bg-amber-400 flex items-center gap-1.5 px-3.5 py-2 rounded-xl hover:to-amber-400 text-white text-sm font-semibold transition-all cursor-pointer"
+        >
+          <QrCode size={23} strokeWidth={3.0} />
+        </button>
 
         <div className="flex items-center gap-2.5 bg-white/70 rounded-xl px-4 py-2 border border-[#E8DDD2] shadow-sm">
           <ClipboardList

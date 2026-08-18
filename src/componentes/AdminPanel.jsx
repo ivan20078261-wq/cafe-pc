@@ -6,11 +6,13 @@ import VistaSala from './VistaSala'
 import Dashboard from './Dashboard'
 import Encabezado from './Encabezado'
 import ModalNuevoPedido from './ModalNuevoPedido'
+
 import ModalGestionarProductos from './ModalGestionarProductos'
+
 import { supabase } from '../supabase'
 import { predecirTiempo } from '../services/mistral'
 import useNotificacionSonido from '../hooks/useNotificacionSonido'
-
+import ModalConfigurarMesas from './ModalConfigurarMesas'
 const DELAY_ENTREGADO_MS = 8000
 
 export default function AdminPanel() {
@@ -25,6 +27,7 @@ export default function AdminPanel() {
   const [comercioId, setComercioId] = useState(null)
   const [tiemposEstimados, setTiemposEstimados] = useState({})
   const timersRef = useRef({})
+  const [modalQRAbierto, setModalQRAbierto] = useState(false)
 
   useNotificacionSonido(pedidos)
 
@@ -246,6 +249,7 @@ export default function AdminPanel() {
         backgroundSize: '50px 50px'
       }} />
       <Encabezado
+      onAbrirQR={() => setModalQRAbierto(true)}
         vista={vista}
         onChangeVista={setVista}
         pedidosActivos={pedidos.length}
@@ -295,6 +299,14 @@ export default function AdminPanel() {
           abierto={modalProductosAbierto}
           comercioId={comercioId}
           onCerrar={() => setModalProductosAbierto(false)}
+        />
+      )}
+      {comercioId && (
+        <ModalConfigurarMesas
+          abierto={modalQRAbierto}
+          onCerrar={() => setModalQRAbierto(false)}
+          comercioId={comercioId}
+          slug={slugAUsar}
         />
       )}
     </div>
