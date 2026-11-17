@@ -4,21 +4,6 @@ import { X, Coffee, Table, ChevronLeft, ShoppingBag } from 'lucide-react'
 import { supabase } from '../supabase'
 import SelectorModificadores from './SelectorModificadores'
 
-const ICONOS_CATEGORIA = {
-  cafe: '☕',
-  te: '🍵',
-  bebidas: '🥤',
-  comida: '🥪',
-  postre: '🍰',
-  panes: '🥖',
-  facturas: '🥐',
-  ensaladas: '🥗',
-  bowls: '🥣',
-  wraps: '🌯',
-  principal: '🍽️',
-  postres: '🍮',
-}
-
 export default function ModalNuevoPedido({ abierto, comercioId, onCerrar, onCrear }) {
   const [productos, setProductos] = useState([])
   const [categorias, setCategorias] = useState([])
@@ -257,7 +242,6 @@ export default function ModalNuevoPedido({ abierto, comercioId, onCerrar, onCrea
                               : 'bg-[#FAF7F2] text-[#8B7A6A] border border-[#E8DDD2] hover:border-amber-300'
                           }`}
                         >
-                          <span>{ICONOS_CATEGORIA[cat] || '📋'}</span>
                           {cat.charAt(0).toUpperCase() + cat.slice(1)}
                         </button>
                       ))}

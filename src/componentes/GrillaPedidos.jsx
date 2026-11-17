@@ -29,7 +29,7 @@ function EstadoVacio() {
   )
 }
 
-function GrillaPedidos({ pedidos, tiemposTranscurridos, tiemposEstimados, onPreparar, onEntregar, onEliminar }) {
+function GrillaPedidos({ pedidos, tiemposTranscurridos, tiemposEstimados, onPreparar, onEntregar, onEliminar, onCancelar, puedeCancelar }) {
   return (
     <div className="flex-1 overflow-y-auto px-6 pb-6">
       <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-4 pt-4 auto-rows-min">
@@ -43,6 +43,8 @@ function GrillaPedidos({ pedidos, tiemposTranscurridos, tiemposEstimados, onPrep
               onPreparar={onPreparar}
               onEntregar={onEntregar}
               onEliminar={onEliminar}
+              onCancelar={onCancelar}
+              puedeCancelar={puedeCancelar}
             />
           ))}
         </AnimatePresence>

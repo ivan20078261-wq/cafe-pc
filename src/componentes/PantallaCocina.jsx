@@ -2,7 +2,7 @@ import { useState } from 'react'
 import GrillaPedidos from './GrillaPedidos'
 import FiltrosEstado from './FiltrosEstado'
 
-function PantallaCocina({ pedidos, tiemposTranscurridos, tiemposEstimados, onPreparar, onEntregar, onEliminar }) {
+function PantallaCocina({ pedidos, tiemposTranscurridos, tiemposEstimados, onPreparar, onEntregar, onEliminar, onCancelar, puedeCancelar }) {
   const [filtro, setFiltro] = useState('todos')
 
   const pedidosFiltrados = pedidos.filter((p) => {
@@ -26,6 +26,8 @@ function PantallaCocina({ pedidos, tiemposTranscurridos, tiemposEstimados, onPre
         onPreparar={onPreparar}
         onEntregar={onEntregar}
         onEliminar={onEliminar}
+        onCancelar={onCancelar}
+        puedeCancelar={puedeCancelar}
       />
     </>
   )

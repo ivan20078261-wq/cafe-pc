@@ -43,6 +43,144 @@ function StatCard({ icon: Icon, label, value, subtitle, color, delay }) {
   );
 }
 
+function GraficoLinea({ data, color, areaColor, formatValor, id }) {
+  const W = 560;
+  const H = 240;
+  const padL = 48;
+  const padR = 14;
+  const padT = 16;
+  const padB = 34;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const n = data.length;
+  const max = Math.max(...data, 1);
+  const xFor = (i) => padL + (i / (n - 1)) * innerW;
+  const yFor = (v) => padT + innerH - (v / max) * innerH;
+  const lineD = data
+    .map((v, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(1)} ${yFor(v).toFixed(1)}`)
+    .join(" ");
+  const areaD =
+    `M ${xFor(0).toFixed(1)} ${(padT + innerH).toFixed(1)} ` +
+    data.map((v, i) => `L ${xFor(i).toFixed(1)} ${yFor(v).toFixed(1)}`).join(" ") +
+    ` L ${xFor(n - 1).toFixed(1)} ${(padT + innerH).toFixed(1)} Z`;
+
+  const peakIdx = data.reduce((best, v, i) => (v > data[best] ? i : best), 0);
+  const valleyIdx = data.reduce((best, v, i) => (v < data[best] ? i : best), 0);
+
+  const ticks = [0, max / 2, max];
+  const xLabels = [0, 3, 6, 9, 12, 15, 18, 21];
+
+  return (
+    <div className="w-full">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-auto"
+        role="img"
+        aria-label="Gráfico por hora"
+      >
+        <defs>
+          <linearGradient id={`areaGrad-${id}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={areaColor} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={areaColor} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {ticks.map((t, i) => (
+          <g key={i}>
+            <line
+              x1={padL}
+              y1={yFor(t)}
+              x2={W - padR}
+              y2={yFor(t)}
+              stroke="#E8DDD2"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+            />
+            <text
+              x={padL - 6}
+              y={yFor(t) + 3}
+              textAnchor="end"
+              fontSize="9"
+              fill="#8B7A6A"
+            >
+              {formatValor(t)}
+            </text>
+          </g>
+        ))}
+        <line
+          x1={padL}
+          y1={padT}
+          x2={padL}
+          y2={padT + innerH}
+          stroke="#D6C9B8"
+          strokeWidth="1.5"
+        />
+        <line
+          x1={padL}
+          y1={padT + innerH}
+          x2={W - padR}
+          y2={padT + innerH}
+          stroke="#D6C9B8"
+          strokeWidth="1.5"
+        />
+        <path d={areaD} fill={`url(#areaGrad-${id})`} />
+        <path
+          d={lineD}
+          fill="none"
+          stroke={color}
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {data.map((v, i) => {
+          const isPeak = i === peakIdx && max > 0;
+          const isValley = i === valleyIdx;
+          if (!isPeak && !isValley) return null;
+          return (
+            <circle
+              key={i}
+              cx={xFor(i)}
+              cy={yFor(v)}
+              r={isPeak ? 4.5 : 3.5}
+              fill={isPeak ? color : "#fff"}
+              stroke={color}
+              strokeWidth="2"
+            />
+          );
+        })}
+        {xLabels.map((h) => (
+          <text
+            key={h}
+            x={xFor(h)}
+            y={H - 12}
+            textAnchor="middle"
+            fontSize="9"
+            fill="#8B7A6A"
+          >
+            {h}h
+          </text>
+        ))}
+        <text
+          x={xFor(23)}
+          y={H - 12}
+          textAnchor="middle"
+          fontSize="9"
+          fill="#8B7A6A"
+        >
+          23h
+        </text>
+      </svg>
+      <div className="flex flex-wrap gap-4 text-xs mt-2 px-1">
+        <span className="text-[#3D2B1F] font-semibold">
+          Pico: <span style={{ color }}>{peakIdx}h</span> · {formatValor(data[peakIdx])}
+        </span>
+        <span className="text-[#3D2B1F] font-semibold">
+          Valle: <span className="text-sky-600">{valleyIdx}h</span> · {formatValor(data[valleyIdx])}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function BarraHorizontal({ label, value, maxValue, color, delay }) {
   const pct = maxValue > 0 ? (value / maxValue) * 100 : 0;
   return (
@@ -75,6 +213,7 @@ export default function Dashboard({ comercioId }) {
   const [insights, setInsights] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [cargandoInsights, setCargandoInsights] = useState(false);
+  const [metrica, setMetrica] = useState("pedidos");
 
   useEffect(() => {
     if (!comercioId) return;
@@ -94,18 +233,21 @@ export default function Dashboard({ comercioId }) {
           .from("pedidos")
           .select("*, mesas(numero_mesa)")
           .eq("comercio_id", comercioId)
+          .neq("estado", "cancelado")
           .gte("creado_at", hoy.toISOString())
           .lt("creado_at", manana.toISOString()),
         supabase
           .from("pedidos")
           .select("*")
           .eq("comercio_id", comercioId)
+          .neq("estado", "cancelado")
           .gte("creado_at", ayer.toISOString())
           .lt("creado_at", hoy.toISOString()),
         supabase
           .from("pedidos")
           .select("*")
           .eq("comercio_id", comercioId)
+          .neq("estado", "cancelado")
           .gte("creado_at", hace7Dias.toISOString()),
       ]);
 
@@ -115,7 +257,11 @@ export default function Dashboard({ comercioId }) {
 
       // Calcular estadísticas de hoy
       const pedidosPorHora = {};
-      for (let h = 0; h <= 23; h++) pedidosPorHora[h] = 0;
+      const facturadoPorHora = {};
+      for (let h = 0; h <= 23; h++) {
+        pedidosPorHora[h] = 0;
+        facturadoPorHora[h] = 0;
+      }
       let totalFacturado = 0;
       let totalItems = 0;
       let pendientes = 0;
@@ -126,6 +272,7 @@ export default function Dashboard({ comercioId }) {
       for (const p of pedidosHoy) {
         const hora = new Date(p.creado_at).getHours();
         pedidosPorHora[hora]++;
+        facturadoPorHora[hora] += p.total || 0;
         totalFacturado += p.total || 0;
 
         for (const item of p.items || []) {
@@ -145,6 +292,7 @@ export default function Dashboard({ comercioId }) {
         .slice(0, 5);
 
       const maxPorHora = Math.max(...Object.values(pedidosPorHora), 1);
+      const maxFacturadoPorHora = Math.max(...Object.values(facturadoPorHora), 1);
       const maxProducto = productosOrdenados[0]?.[1] || 1;
 
       // Stats de ayer
@@ -189,8 +337,10 @@ export default function Dashboard({ comercioId }) {
         horaPico,
         maxPedidos,
         pedidosPorHora,
+        facturadoPorHora,
         productosTop: productosOrdenados,
         maxPorHora,
+        maxFacturadoPorHora,
         maxProducto,
         vsAyer,
         pedidosAyer: pedidosAyerCount,
@@ -310,31 +460,60 @@ export default function Dashboard({ comercioId }) {
           transition={{ delay: 0.4 }}
           className="bg-white rounded-2xl border border-[#E8DDD2] p-5"
         >
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 size={16} className="text-amber-500" />
-            <h3 className="text-sm font-bold text-[#3D2B1F]">
-              Pedidos por hora
-            </h3>
+          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <BarChart3 size={16} className="text-amber-500" />
+              <h3 className="text-sm font-bold text-[#3D2B1F]">
+                Actividad por hora
+              </h3>
+            </div>
+            <div className="flex items-center gap-1 bg-[#F5EDE0] rounded-lg p-1">
+              <button
+                onClick={() => setMetrica("pedidos")}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  metrica === "pedidos"
+                    ? "bg-amber-500 text-white"
+                    : "text-[#8B7A6A] hover:text-[#3D2B1F]"
+                }`}
+              >
+                Pedidos
+              </button>
+              <button
+                onClick={() => setMetrica("facturado")}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  metrica === "facturado"
+                    ? "bg-emerald-500 text-white"
+                    : "text-[#8B7A6A] hover:text-[#3D2B1F]"
+                }`}
+              >
+                Facturado
+              </button>
+            </div>
           </div>
-          <div className="space-y-2">
-            {Object.entries(stats.pedidosPorHora)
-              .filter(([, v]) => v > 0)
-              .map(([hora, cantidad], i) => (
-                <BarraHorizontal
-                  key={hora}
-                  label={`${hora}h`}
-                  value={cantidad}
-                  maxValue={stats.maxPorHora}
-                  color="bg-gradient-to-r from-amber-400 to-amber-300"
-                  delay={0.5 + i * 0.05}
-                />
-              ))}
-            {Object.values(stats.pedidosPorHora).every((v) => v === 0) && (
-              <p className="text-xs text-[#8B7A6A]/50 text-center py-4">
-                Sin pedidos hoy
-              </p>
-            )}
-          </div>
+          {metrica === "pedidos" ? (
+            <GraficoLinea
+              id="pedidos"
+              data={Array.from({ length: 24 }, (_, h) => stats.pedidosPorHora[h] || 0)}
+              color="#f59e0b"
+              areaColor="#f59e0b"
+              formatValor={(v) => Math.round(v).toString()}
+            />
+          ) : (
+            <GraficoLinea
+              id="facturado"
+              data={Array.from({ length: 24 }, (_, h) => stats.facturadoPorHora?.[h] || 0)}
+              color="#10b981"
+              areaColor="#10b981"
+              formatValor={(v) => `$${Math.round(v).toLocaleString()}`}
+            />
+          )}
+          {Object.values(
+            metrica === "pedidos" ? stats.pedidosPorHora : stats.facturadoPorHora || {},
+          ).every((v) => v === 0) && (
+            <p className="text-xs text-[#8B7A6A]/50 text-center py-2">
+              Sin datos hoy
+            </p>
+          )}
         </motion.div>
 
         {/* Top productos */}

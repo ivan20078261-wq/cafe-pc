@@ -5,6 +5,7 @@ const filtros = [
   { key: 'pendiente', label: 'Pendientes' },
   { key: 'preparando', label: 'Preparando' },
   { key: 'entregado', label: 'Entregados' },
+  { key: 'cancelado', label: 'Cancelados' },
 ]
 
 function FiltrosEstado({ filtro, onChange }) {

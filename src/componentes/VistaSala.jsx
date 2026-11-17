@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
+import { Trash2, X, ClipboardList, Coffee, Armchair } from 'lucide-react'
 
 const UMBRAL_ALERTA = 7 * 60
 const CW = 1180, CH = 560
@@ -34,6 +35,7 @@ const ESTADO_CONFIG = {
   preparando: { silla: '#F97316', mesa: '#FFF7ED', borde: '#F97316', dot: '#F97316', label: 'Preparando' },
   entregado:  { silla: '#10B981', mesa: '#ECFDF5', borde: '#10B981', dot: '#10B981', label: 'Atendido' },
   urgente:    { silla: '#EF4444', mesa: '#FEF2F2', borde: '#EF4444', dot: '#EF4444', label: '¡Urgente!' },
+  cancelado:  { silla: '#FCA5A5', mesa: '#FEF2F2', borde: '#FCA5A5', dot: '#EF4444', label: 'Cancelado' },
 }
 
 function Silla({ x, y, rot, color }) {
@@ -122,7 +124,7 @@ function MesaSVG({ numero, x, y, pedidosMesa, tiemposTranscurridos, onClick, onD
   )
 }
 
-function ModalDetalle({ mesa, pedidos, tiemposTranscurridos, onPreparar, onEntregar, onEliminarPedido, onEliminar, onCerrar }) {
+function ModalDetalle({ mesa, pedidos, tiemposTranscurridos, onPreparar, onEntregar, onEliminarPedido, onCancelar, puedeCancelar, onEliminar, onCerrar }) {
   if (!mesa) return null
   const totalItems = pedidos.reduce((s, p) => s + p.productos.reduce((a, x) => a + (x.cantidad ?? 1), 0), 0)
 
@@ -136,8 +138,8 @@ function ModalDetalle({ mesa, pedidos, tiemposTranscurridos, onPreparar, onEntre
             <div style={{ fontSize: 12, color: '#8B7A6A', marginTop: 2 }}>{pedidos.length} pedido{pedidos.length !== 1 ? 's' : ''} · {totalItems} items</div>
           </div>
           <div style={{ display: 'flex', gap: 4 }}>
-            <button onClick={() => onEliminar(mesa)} title="Eliminar mesa" style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, padding: '4px 8px', fontSize: 12, color: '#DC2626', cursor: 'pointer' }}>🗑</button>
-            <button onClick={onCerrar} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#8B7A6A', lineHeight: 1, padding: 4 }}>✕</button>
+            <button onClick={() => onEliminar(mesa)} title="Eliminar mesa" style={{ background: '#FEE2E2', border: 'none', borderRadius: 8, padding: '4px 8px', fontSize: 12, color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Trash2 size={14} /></button>
+            <button onClick={onCerrar} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#8B7A6A', lineHeight: 1, padding: 4, display: 'flex', alignItems: 'center' }}><X size={18} /></button>
           </div>
         </div>
 
@@ -175,6 +177,11 @@ function ModalDetalle({ mesa, pedidos, tiemposTranscurridos, onPreparar, onEntre
                     Marcar libre
                   </button>
                 )}
+                {(estado === 'pendiente' || estado === 'preparando') && puedeCancelar && (
+                  <button onClick={() => { if (window.confirm('¿Cancelar este pedido?')) onCancelar(p.id) }} style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: '1.5px solid #FCA5A5', background: 'transparent', color: '#DC2626', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+                    Cancelar
+                  </button>
+                )}
               </div>
             </div>
           )
@@ -184,7 +191,7 @@ function ModalDetalle({ mesa, pedidos, tiemposTranscurridos, onPreparar, onEntre
   )
 }
 
-function VistaSala({ pedidos, tiemposTranscurridos, onPreparar, onEntregar, onEliminar }) {
+function VistaSala({ pedidos, tiemposTranscurridos, onPreparar, onEntregar, onEliminar, onCancelar, puedeCancelar }) {
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null)
   const [posiciones, setPosiciones] = useState(POSICIONES_INICIALES)
   const [dragInfo, setDragInfo] = useState(null)
@@ -192,7 +199,9 @@ function VistaSala({ pedidos, tiemposTranscurridos, onPreparar, onEntregar, onEl
 
   const pedidosPorMesa = useMemo(() => {
     const m = {}
-    for (const num of Object.keys(posiciones).map(Number)) m[num] = pedidos.filter((p) => p.mesa === num)
+    for (const num of Object.keys(posiciones).map(Number)) {
+      m[num] = pedidos.filter((p) => p.mesa === num && p.estado !== 'cancelado')
+    }
     return m
   }, [pedidos, posiciones])
 
@@ -282,12 +291,12 @@ function VistaSala({ pedidos, tiemposTranscurridos, onPreparar, onEntregar, onEl
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '8px 12px 12px', background: '#F5EDE0', overflow: 'hidden' }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         {[
-          { icon: '🪑', val: `${mesasOcupadas}/${totalMesas}`, lbl: 'mesas ocupadas' },
-          { icon: '📋', val: pedidos.length, lbl: pedidos.length === 1 ? 'pedido' : 'pedidos' },
-          { icon: '☕', val: totalItems, lbl: totalItems === 1 ? 'item' : 'items' },
+          { icon: Armchair, val: `${mesasOcupadas}/${totalMesas}`, lbl: 'mesas ocupadas' },
+          { icon: ClipboardList, val: pedidos.length, lbl: pedidos.length === 1 ? 'pedido' : 'pedidos' },
+          { icon: Coffee, val: totalItems, lbl: totalItems === 1 ? 'item' : 'items' },
         ].map((s) => (
           <div key={s.lbl} style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid #E0D0BC', borderRadius: 12, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8, backdropFilter: 'blur(4px)' }}>
-            <span style={{ fontSize: 16 }}>{s.icon}</span>
+            <s.icon size={16} style={{ color: '#8B7A6A' }} />
             <span style={{ fontSize: 14, fontWeight: 600, color: '#3D2B1F' }}>{s.val}</span>
             <span style={{ fontSize: 11, color: '#8B7A6A' }}>{s.lbl}</span>
           </div>
@@ -406,6 +415,8 @@ function VistaSala({ pedidos, tiemposTranscurridos, onPreparar, onEntregar, onEl
           const quedan = pedidosPorMesa[mesaSeleccionada]?.filter((p) => p.id !== id) ?? []
           if (quedan.length === 0) setMesaSeleccionada(null)
         }}
+        onCancelar={onCancelar}
+        puedeCancelar={puedeCancelar}
         onEliminar={handleEliminarMesa}
         onCerrar={() => setMesaSeleccionada(null)}
       />

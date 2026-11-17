@@ -57,14 +57,16 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
 
-    const { error: insertError } = await supabase.rpc('crear_usuario', {
-      p_auth_uid: data.user.id,
-      p_email: email,
-      p_nombre: nombre,
-      p_comercio_id: comercioId,
-      p_rol: rol,
-    })
-    if (insertError) throw insertError
+    if (comercioId) {
+      const { error: insertError } = await supabase.rpc('crear_usuario', {
+        p_auth_uid: data.user.id,
+        p_email: email,
+        p_nombre: nombre,
+        p_comercio_id: comercioId,
+        p_rol: rol,
+      })
+      if (insertError) throw insertError
+    }
 
     // Si el email está auto-confirmado, recargamos los datos del usuario
     if (data.session) {

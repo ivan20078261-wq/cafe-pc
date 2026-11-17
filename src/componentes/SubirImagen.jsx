@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { Upload } from "lucide-react";
 import { supabase } from "../supabase";
 
 export default function SubirImagen({
@@ -31,7 +32,7 @@ export default function SubirImagen({
       const { error: uploadError } = await supabase.storage
         .from("productos")
         .upload(filePath, file, {
-          cacheControl: "3600",
+          cacheControl: "0",
           upsert: true,
         });
 
@@ -76,7 +77,7 @@ export default function SubirImagen({
           />
         ) : (
           <>
-            <span className="text-3xl">📷</span>
+            <Upload size={32} className="text-[#8B7A6A]" />
             <span className="text-sm font-medium text-[#8B7A6A]">
               {subiendo ? "Subiendo…" : "Tocar para subir foto"}
             </span>

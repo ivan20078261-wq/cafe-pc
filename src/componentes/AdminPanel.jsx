@@ -11,8 +11,13 @@ import ModalGestionarProductos from './ModalGestionarProductos'
 
 import { supabase } from '../supabase'
 import { predecirTiempo } from '../services/mistral'
+import { puede } from '../services/permisos'
 import useNotificacionSonido from '../hooks/useNotificacionSonido'
 import ModalConfigurarMesas from './ModalConfigurarMesas'
+import ModalGestionarCategorias from './ModalGestionarCategorias'
+import ModalEquipo from './ModalEquipo'
+import ModalConfiguracionComercio from './ModalConfiguracionComercio'
+import ModalLlamadas from './ModalLlamadas'
 const DELAY_ENTREGADO_MS = 8000
 
 export default function AdminPanel() {
@@ -28,10 +33,21 @@ export default function AdminPanel() {
   const [tiemposEstimados, setTiemposEstimados] = useState({})
   const timersRef = useRef({})
   const [modalQRAbierto, setModalQRAbierto] = useState(false)
+  const [modalCategoriasAbierto, setModalCategoriasAbierto] = useState(false)
+  const [modalEquipoAbierto, setModalEquipoAbierto] = useState(false)
+  const [modalConfiguracionAbierto, setModalConfiguracionAbierto] = useState(false)
+  const [modalLlamadasAbierto, setModalLlamadasAbierto] = useState(false)
+  const [llamadas, setLlamadas] = useState([])
 
   useNotificacionSonido(pedidos)
 
   const slugAUsar = comercio_slug || 'cafe-central'
+  const rol = usuario?.rol
+
+  useEffect(() => {
+    if (!puede(rol, 'verSala') && vista === 'sala') setVista('cocina')
+    if (!puede(rol, 'verDashboard') && vista === 'dashboard') setVista('cocina')
+  }, [rol, vista])
 
   const calcularPrediccion = useCallback(async (pedido) => {
     if (pedido.estado !== 'pendiente') return
@@ -62,6 +78,31 @@ export default function AdminPanel() {
       }
       setComercioId(comercio.id)
 
+      // Cargar llamadas pendientes
+      const { data: llamadasData } = await supabase
+        .from('llamadas_mozo')
+        .select('*')
+        .eq('comercio_id', comercio.id)
+        .eq('estado', 'pendiente')
+        .order('creado_at', { ascending: false })
+      if (llamadasData) setLlamadas(llamadasData)
+
+      // Realtime
+      const canalLlamadas = supabase
+        .channel(`llamadas-${comercio.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'llamadas_mozo', filter: `comercio_id=eq.${comercio.id}` }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setLlamadas((prev) => [payload.new, ...prev])
+          } else if (payload.eventType === 'UPDATE') {
+            setLlamadas((prev) => prev.filter((l) => l.id !== payload.new.id || payload.new.estado === 'pendiente').map((l) => l.id === payload.new.id ? payload.new : l).filter((l) => l.estado === 'pendiente'))
+          } else if (payload.eventType === 'DELETE') {
+            setLlamadas((prev) => prev.filter((l) => l.id !== payload.old.id))
+          }
+        })
+        .subscribe()
+      // guardar para cleanup
+      timersRef.current.canalLlamadas = canalLlamadas
+
       const { data, error } = await supabase
         .from('pedidos')
         .select('*, mesas(numero_mesa)')
@@ -76,7 +117,8 @@ export default function AdminPanel() {
           id: p.id,
           mesa: p.mesas?.numero_mesa ?? '?',
           productos: p.items,
-          notas: '',
+          notas: p.notas || '',
+          motivoCancelacion: p.motivo_cancelacion || '',
           estado: p.estado,
           creadoEn: new Date(p.creado_at).getTime(),
         }))
@@ -91,13 +133,31 @@ export default function AdminPanel() {
       setCargando(false)
     }
     init()
+    return () => {
+      if (timersRef.current.canalLlamadas) supabase.removeChannel(timersRef.current.canalLlamadas)
+    }
   }, [slugAUsar])
 
   const abrirModalProductos = useCallback(() => {
-    if (comercioId) {
+    if (comercioId && puede(rol, 'gestionar')) {
       setModalProductosAbierto(true)
     }
-  }, [comercioId])
+  }, [comercioId, rol])
+
+  const abrirModalQR = useCallback(() => {
+    if (puede(rol, 'gestionar')) {
+      setModalQRAbierto(true)
+    }
+  }, [rol])
+
+  const atenderLlamada = useCallback(async (id) => {
+    await supabase.from('llamadas_mozo').update({ estado: 'atendido' }).eq('id', id)
+    setLlamadas((prev) => prev.filter((l) => l.id !== id))
+  }, [])
+
+  const abrirModalLlamadas = useCallback(() => {
+    setModalLlamadasAbierto(true)
+  }, [])
 
   useEffect(() => {
     if (!comercioId) return
@@ -119,7 +179,7 @@ export default function AdminPanel() {
               id: payload.new.id,
               mesa: mesa?.numero_mesa ?? '?',
               productos: payload.new.items,
-              notas: '',
+              notas: payload.new.notas || '',
               estado: payload.new.estado,
               creadoEn: new Date(payload.new.creado_at).getTime(),
             }
@@ -141,7 +201,7 @@ export default function AdminPanel() {
               setPedidos((prev) =>
                 prev.map((ped) =>
                   ped.id === payload.new.id
-                    ? { ...ped, estado: payload.new.estado }
+                    ? { ...ped, estado: payload.new.estado, motivoCancelacion: payload.new.motivo_cancelacion || ped.motivoCancelacion }
                     : ped
                 )
               )
@@ -217,6 +277,23 @@ export default function AdminPanel() {
     await supabase.from('pedidos').update({ estado: 'archivado' }).eq('id', idPedido)
   }, [])
 
+  const handleCancelar = useCallback(async (idPedido, motivo = '') => {
+    setPedidos((prev) =>
+      prev.map((p) =>
+        p.id === idPedido ? { ...p, estado: 'cancelado', motivoCancelacion: motivo } : p
+      )
+    )
+    setTiemposEstimados((prev) => {
+      const next = { ...prev }
+      delete next[idPedido]
+      return next
+    })
+    await supabase
+      .from('pedidos')
+      .update({ estado: 'cancelado', motivo_cancelacion: motivo || null })
+      .eq('id', idPedido)
+  }, [])
+
   const handleCrearPedido = useCallback(async (pedido) => {
     if (!comercioId) return
 
@@ -232,13 +309,23 @@ export default function AdminPanel() {
       return
     }
 
-    await supabase.from('pedidos').insert({
+    const total = (pedido.productos || []).reduce(
+      (sum, p) => sum + (Number(p.precio) || 0) * (Number(p.cantidad) || 1),
+      0,
+    )
+
+    const { error } = await supabase.from('pedidos').insert({
       comercio_id: comercioId,
       mesa_id: mesa.id,
       items: pedido.productos,
-      total: 0,
+      total,
+      notas: pedido.notas || '',
       estado: 'pendiente',
     })
+
+    if (error) {
+      console.error('Error al crear pedido:', error)
+    }
   }, [comercioId])
 
   return (
@@ -249,7 +336,7 @@ export default function AdminPanel() {
         backgroundSize: '50px 50px'
       }} />
       <Encabezado
-      onAbrirQR={() => setModalQRAbierto(true)}
+      onAbrirQR={abrirModalQR}
         vista={vista}
         onChangeVista={setVista}
         pedidosActivos={pedidos.length}
@@ -257,7 +344,14 @@ export default function AdminPanel() {
         entregados={pedidos.filter(p => p.estado === 'entregado').length}
         onNuevoPedido={() => setModalAbierto(true)}
         onGestionarProductos={abrirModalProductos}
+        onAbrirCategorias={() => setModalCategoriasAbierto(true)}
+        onAbrirEquipo={() => setModalEquipoAbierto(true)}
+        onAbrirConfiguracion={() => setModalConfiguracionAbierto(true)}
+        onAbrirLlamadas={abrirModalLlamadas}
+        llamadasPendientes={llamadas.length}
+        comercioNombre={usuario?.comercios?.nombre}
         usuario={usuario}
+        rol={rol}
         onLogout={logout}
       />
       {cargando ? (
@@ -275,17 +369,20 @@ export default function AdminPanel() {
           onPreparar={handlePreparar}
           onEntregar={handleEntregar}
           onEliminar={handleEliminar}
-          onCrearPedido={handleCrearPedido}
+          onCancelar={handleCancelar}
+          puedeCancelar={puede(rol, 'cancelarPedido')}
         />
-      ) : vista === 'sala' ? (
+      ) : vista === 'sala' && puede(rol, 'verSala') ? (
         <VistaSala
           pedidos={pedidos}
           tiemposTranscurridos={tiemposTranscurridos}
           onPreparar={handlePreparar}
           onEntregar={handleEntregar}
           onEliminar={handleEliminar}
+          onCancelar={handleCancelar}
+          puedeCancelar={puede(rol, 'cancelarPedido')}
         />
-      ) : vista === 'dashboard' ? (
+      ) : vista === 'dashboard' && puede(rol, 'verDashboard') ? (
         <Dashboard comercioId={comercioId} />
       ) : null}
       <ModalNuevoPedido
@@ -309,6 +406,33 @@ export default function AdminPanel() {
           slug={slugAUsar}
         />
       )}
+      {comercioId && (
+        <ModalGestionarCategorias
+          abierto={modalCategoriasAbierto}
+          onCerrar={() => setModalCategoriasAbierto(false)}
+          comercioId={comercioId}
+        />
+      )}
+      {comercioId && (
+        <ModalEquipo
+          abierto={modalEquipoAbierto}
+          onCerrar={() => setModalEquipoAbierto(false)}
+          comercioId={comercioId}
+        />
+      )}
+      {comercioId && (
+        <ModalConfiguracionComercio
+          abierto={modalConfiguracionAbierto}
+          onCerrar={() => setModalConfiguracionAbierto(false)}
+          comercioId={comercioId}
+        />
+      )}
+      <ModalLlamadas
+        abierto={modalLlamadasAbierto}
+        onCerrar={() => setModalLlamadasAbierto(false)}
+        llamadas={llamadas}
+        onAtender={atenderLlamada}
+      />
     </div>
   )
 }

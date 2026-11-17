@@ -165,9 +165,9 @@ function ProductoCard({
 
         <SubirImagen
           productoId={producto.id}
-          imagenActual={formData.imagen}
+          imagenActual={formData.imagen_url}
           onImagenSubida={(url) =>
-            setFormData((prev) => ({ ...prev, imagen: url }))
+            setFormData((prev) => ({ ...prev, imagen_url: url }))
           }
         />
 
@@ -299,7 +299,7 @@ export default function ModalGestionarProductos({
     precio_base: 0,
     categoria: "",
     descripcion: "",
-    imagen: "",
+    imagen_url: "",
   });
   const [archivoPendiente, setArchivoPendiente] = useState(null);
 
@@ -345,6 +345,7 @@ export default function ModalGestionarProductos({
           precio_base: nuevoProducto.precio_base,
           categoria: nuevoProducto.categoria,
           descripcion: nuevoProducto.descripcion,
+          imagen_url: nuevoProducto.imagen_url || null,
           comercio_id: comercioId,
         })
         .select();
@@ -370,7 +371,7 @@ export default function ModalGestionarProductos({
 
             const { error: updateError } = await supabase
               .from("productos")
-              .update({ imagen: publicUrl.publicUrl })
+              .update({ imagen_url: publicUrl.publicUrl })
               .eq("id", creado.id);
 
             if (updateError) throw updateError;
@@ -387,7 +388,7 @@ export default function ModalGestionarProductos({
           precio_base: 0,
           categoria: "",
           descripcion: "",
-          imagen: "",
+          imagen_url: "",
         });
       }
     } catch (error) {
@@ -503,9 +504,9 @@ export default function ModalGestionarProductos({
 
                 <SubirImagen
                   productoId="nuevo"
-                  imagenActual={nuevoProducto.imagen}
+                  imagenActual={nuevoProducto.imagen_url}
                   onImagenSubida={(url) => {
-                    setNuevoProducto((prev) => ({ ...prev, imagen: url }))
+                    setNuevoProducto((prev) => ({ ...prev, imagen_url: url }))
                   }}
                   onArchivoSeleccionado={setArchivoPendiente}
                 />

@@ -9,6 +9,7 @@ import {
   Check,
   CookingPot,
   PackageCheck,
+  X,
   Sparkles,
 } from "lucide-react";
 import ItemProducto from "./ItemProducto";
@@ -49,6 +50,14 @@ const estados = {
     acento: "text-emerald-600",
     barra: "bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-400",
     glow: "rgba(16,185,129,0.1)",
+  },
+  cancelado: {
+    borde: "border-red-200",
+    fondo: "bg-red-50/40",
+    hover: "",
+    acento: "text-red-600",
+    barra: "bg-gradient-to-r from-red-300 via-red-200 to-red-300",
+    glow: "rgba(220,38,38,0.06)",
   },
 };
 
@@ -124,20 +133,24 @@ function TarjetaPedido({
   onPreparar,
   onEntregar,
   onEliminar,
+  onCancelar,
+  puedeCancelar,
 }) {
   const estaPreparando = pedido.estado === "preparando";
   const estaEntregado = pedido.estado === "entregado";
+  const estaCancelado = pedido.estado === "cancelado";
   const estilo = estados[pedido.estado] || estados.pendiente;
   const badgePendiente = pedido.productos.reduce(
     (sum, p) => sum + (p.cantidad ?? 1),
     0,
   );
   const esUrgente =
-    !estaPreparando && !estaEntregado && tiempoTranscurrido >= UMBRAL_ALERTA;
+    !estaPreparando && !estaEntregado && !estaCancelado && tiempoTranscurrido >= UMBRAL_ALERTA;
   const [feedback, setFeedback] = useState(null);
 
   const handleCardClick = (e) => {
     if (e.target.closest("button") || e.target.closest("a")) return;
+    if (estaCancelado) return;
     if (pedido.estado === "pendiente") {
       setFeedback("preparando");
       setTimeout(() => setFeedback(null), 300);
@@ -208,13 +221,17 @@ function TarjetaPedido({
               className={`w-9 h-9 rounded-xl border flex items-center justify-center ${
                 estaEntregado
                   ? "bg-emerald-100/80 border-emerald-200/60 text-emerald-600"
-                  : esUrgente
+                  : estaCancelado
                     ? "bg-red-100/80 border-red-200/60 text-red-600"
-                    : `${estilo.acento} bg-amber-100/80 border-amber-200/60`
+                    : esUrgente
+                      ? "bg-red-100/80 border-red-200/60 text-red-600"
+                      : `${estilo.acento} bg-amber-100/80 border-amber-200/60`
               }`}
             >
               {estaEntregado ? (
                 <PackageCheck size={18} strokeWidth={1.5} />
+              ) : estaCancelado ? (
+                <X size={18} strokeWidth={1.5} />
               ) : esUrgente ? (
                 <AlertTriangle size={18} strokeWidth={1.5} />
               ) : (
@@ -238,11 +255,13 @@ function TarjetaPedido({
             className={`flex items-center gap-1.5 text-sm font-mono tabular-nums ${
               estaEntregado
                 ? "text-emerald-600"
-                : esUrgente
-                  ? "text-red-600"
-                  : estaPreparando
-                    ? "text-amber-600"
-                    : "text-[#8B7A6A]"
+                : estaCancelado
+                  ? "text-red-500"
+                  : esUrgente
+                    ? "text-red-600"
+                    : estaPreparando
+                      ? "text-amber-600"
+                      : "text-[#8B7A6A]"
             }`}
           >
             {estaPreparando && (
@@ -266,9 +285,14 @@ function TarjetaPedido({
                 className="text-emerald-500"
               />
             )}
-            {!estaEntregado && <Timer size={14} strokeWidth={1.5} />}
+            {estaCancelado && <X size={14} strokeWidth={1.5} className="text-red-500" />}
+            {!estaEntregado && !estaCancelado && <Timer size={14} strokeWidth={1.5} />}
             <span className="font-semibold">
-              {estaEntregado ? "Listo" : formatearTiempo(tiempoTranscurrido)}
+              {estaEntregado
+                ? "Listo"
+                : estaCancelado
+                  ? "Cancelado"
+                  : formatearTiempo(tiempoTranscurrido)}
             </span>
           </div>
         </div>
@@ -286,7 +310,7 @@ function TarjetaPedido({
           </motion.div>
         )}
 
-        {!estaPreparando && !estaEntregado && (
+        {!estaPreparando && !estaEntregado && !estaCancelado && (
           <BarraTiempo segundos={tiempoTranscurrido} />
         )}
 
@@ -303,11 +327,22 @@ function TarjetaPedido({
 
         <NotasEspeciales notas={pedido.notas} />
 
+        {estaCancelado && pedido.motivoCancelacion && (
+          <div className="mt-3 flex items-start gap-2.5 bg-red-50 rounded-xl p-3 border border-red-200/60">
+            <X size={14} strokeWidth={1.5} className="text-red-500 shrink-0 mt-0.5" />
+            <p className="text-[#6B5A4A] text-xs leading-relaxed italic font-medium">
+              Motivo: {pedido.motivoCancelacion}
+            </p>
+          </div>
+        )}
+
         <AccionesPedido
           estado={pedido.estado}
+          puedeCancelar={puedeCancelar}
           onPreparar={() => onPreparar(pedido.id)}
           onEntregar={() => onEntregar(pedido.id)}
           onEliminar={() => onEliminar(pedido.id)}
+          onCancelar={() => onCancelar(pedido.id)}
         />
       </div>
     </motion.div>

@@ -104,15 +104,15 @@ export default function Login() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-[#3D2B1F] mb-1">Comercio</label>
+                  <label className="block text-sm font-semibold text-[#3D2B1F] mb-1">Comercio (opcional)</label>
                   <div className="relative">
                     <select
                       value={comercioId}
                       onChange={(e) => setComercioId(e.target.value)}
-                      required
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#E8DDD2] bg-white text-[#3D2B1F] text-sm focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-300 appearance-none pr-10"
                     >
-                      <option value="">Seleccioná un comercio</option>
+                      <option value="">Soy dueño — crearé mi comercio después</option>
+                      {comercios.length > 0 && <option value="" disabled>── Unirme a un comercio existente ──</option>}
                       {comercios.map((c) => (
                         <option key={c.id} value={c.id}>{c.nombre}</option>
                       ))}
